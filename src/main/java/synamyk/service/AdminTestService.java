@@ -257,21 +257,41 @@ public class AdminTestService {
         question.setOrderIndex(request.getOrderIndex());
         question.setPointValue(request.getPointValue());
 
-        // Replace options
-        optionRepository.deleteAll(
-                optionRepository.findByQuestionIdOrderByOrderIndexAsc(questionId));
+        // Replace options — merge in place so options already referenced by user
+        // answers (user_answer_selected_options) are not hard-deleted.
+        List<AnswerOption> existing =
+                optionRepository.findByQuestionIdOrderByOrderIndexAsc(questionId);
+        List<CreateQuestionRequest.AnswerOptionRequest> incoming = request.getOptions();
 
-        int optIndex = 0;
-        for (CreateQuestionRequest.AnswerOptionRequest optReq : request.getOptions()) {
-            AnswerOption option = AnswerOption.builder()
-                    .question(question)
-                    .label(optReq.getLabel())
-                    .text(optReq.getText())
-                    .textKy(optReq.getTextKy())
-                    .isCorrect(Boolean.TRUE.equals(optReq.getIsCorrect()))
-                    .orderIndex(optIndex++)
-                    .build();
-            optionRepository.save(option);
+        for (int i = 0; i < Math.max(existing.size(), incoming.size()); i++) {
+            if (i < existing.size() && i < incoming.size()) {
+                AnswerOption option = existing.get(i);
+                CreateQuestionRequest.AnswerOptionRequest optReq = incoming.get(i);
+                option.setLabel(optReq.getLabel());
+                option.setText(optReq.getText());
+                option.setTextKy(optReq.getTextKy());
+                option.setIsCorrect(Boolean.TRUE.equals(optReq.getIsCorrect()));
+                option.setOrderIndex(i);
+                optionRepository.save(option);
+            } else if (i < incoming.size()) {
+                CreateQuestionRequest.AnswerOptionRequest optReq = incoming.get(i);
+                optionRepository.save(AnswerOption.builder()
+                        .question(question)
+                        .label(optReq.getLabel())
+                        .text(optReq.getText())
+                        .textKy(optReq.getTextKy())
+                        .isCorrect(Boolean.TRUE.equals(optReq.getIsCorrect()))
+                        .orderIndex(i)
+                        .build());
+            } else {
+                AnswerOption option = existing.get(i);
+                if (optionRepository.countUserAnswerReferences(option.getId()) > 0) {
+                    throw new AppException(
+                            "Нельзя удалить вариант ответа, который уже выбирали пользователи. Отредактируйте его текст вместо удаления.",
+                            "Колдонуучулар мурда тандаган жооп вариантын өчүрүүгө болбойт. Өчүрүүнүн ордуна текстин оңдоңуз.");
+                }
+                optionRepository.delete(option);
+            }
         }
 
         return toAdminQuestionResponse(questionRepository.findById(questionId).orElseThrow());
