@@ -15,4 +15,10 @@ public class CompleteProfileRequest {
 
     @NotNull(message = "Region is required")
     private Long regionId;
+
+    /** Optional: school (GET /api/regions/{regionId}/districts → GET /api/districts/{id}/schools). */
+    private Long schoolId;
+
+    /** Optional: friend's invite code («Пригласи друга»). */
+    private String referralCode;
 }

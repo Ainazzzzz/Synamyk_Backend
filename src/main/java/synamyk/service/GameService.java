@@ -43,6 +43,8 @@ public class GameService {
     private final UserRepository userRepository;
     private final MinioService minioService;
     private final PushNotificationService pushNotificationService;
+    private final GameRatingService gameRatingService;
+    private final synamyk.util.FigureValidator figureValidator;
 
     /** gameTestId -> roomId waiting for second player */
     private final ConcurrentHashMap<Long, Long> waitingRooms = new ConcurrentHashMap<>();
@@ -52,6 +54,8 @@ public class GameService {
     private final ConcurrentHashMap<Long, String> botRoomNames = new ConcurrentHashMap<>();
     /** roomId -> active game state */
     private final ConcurrentHashMap<Long, ActiveGameState> activeGames = new ConcurrentHashMap<>();
+
+    private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(10);
 
@@ -218,15 +222,7 @@ public class GameService {
                 GameEvent.QuestionPayload questionPayload = null;
                 Integer remaining = null;
                 if (q != null) {
-                    List<GameEvent.OptionPayload> options = q.getOptions().stream()
-                            .map(o -> new GameEvent.OptionPayload(o.getId(), o.getText()))
-                            .collect(Collectors.toList());
-                    questionPayload = GameEvent.QuestionPayload.builder()
-                            .id(q.getId())
-                            .text(q.getText())
-                            .imageUrl(q.getImageUrl())
-                            .options(options)
-                            .build();
+                    questionPayload = questionPayload(state, q);
 
                     long elapsed = state.questionStartedAt == null ? 0
                             : java.time.Duration.between(state.questionStartedAt, java.time.Instant.now()).getSeconds();
@@ -339,6 +335,9 @@ public class GameService {
                             .opponentScore(opponentScore)
                             .totalQuestions(r.getTotalQuestions())
                             .won(r.getWon())
+                            .ratingChange(r.getRatingBefore() != null && r.getRatingAfter() != null
+                                    ? r.getRatingAfter() - r.getRatingBefore() : null)
+                            .ratingAfter(r.getRatingAfter())
                             .draw(draw)
                             .vsBot(vsBot)
                             .forfeited(room != null && room.getForfeitedBy() != null)
@@ -361,7 +360,7 @@ public class GameService {
             botTimers.remove(gameTestId);
 
             // Pick a random bot name
-            String botName = BOT_NAMES.get(new Random().nextInt(BOT_NAMES.size()));
+            String botName = BOT_NAMES.get(RANDOM.nextInt(BOT_NAMES.size()));
             botRoomNames.put(roomId, botName);
 
             room.setPlayer2Id(BOT_ID);
@@ -387,7 +386,7 @@ public class GameService {
 
             List<GameQuestion> questions = new ArrayList<>(
                     gameQuestionRepository.findByGameTestIdAndActiveTrue(gameTest.getId()));
-            Collections.shuffle(questions);
+            Collections.shuffle(questions, RANDOM);
 
             int limit = gameTest.getQuestionsPerGame();
             if (limit > 0 && limit < questions.size()) {
@@ -414,6 +413,20 @@ public class GameService {
             state.questions = questions;
             state.timeLimitSeconds = gameTest.getTimeLimitSeconds();
             state.isBotGame = isBotGame;
+            // Shuffle answer options for every question so the position of the right answer can't be memorised.
+            for (GameQuestion gq : questions) {
+                List<GameEvent.OptionPayload> opts = gq.getOptions().stream()
+                        .map(o -> new GameEvent.OptionPayload(o.getId(), o.getText()))
+                        .collect(Collectors.toCollection(ArrayList::new));
+                Collections.shuffle(opts, RANDOM);
+                state.shuffledOptions.put(gq.getId(), opts);
+            }
+            if (isBotGame) {
+                // The bot plays at a random strength each game, so it wins some and loses some.
+                state.botAccuracy = 0.35 + RANDOM.nextDouble() * 0.5;
+                int playerRating = gameRatingService.currentRating(p1.getId());
+                state.botRating = Math.max(GameRatingService.MIN_RATING, playerRating - 150 + RANDOM.nextInt(301));
+            }
             activeGames.put(roomId, state);
 
             GameEvent started = GameEvent.builder()
@@ -447,22 +460,13 @@ public class GameService {
             state.currentAnswers.clear();
             state.questionStartedAt = java.time.Instant.now();
 
-            List<GameEvent.OptionPayload> options = q.getOptions().stream()
-                    .map(o -> new GameEvent.OptionPayload(o.getId(), o.getText()))
-                    .collect(Collectors.toList());
-
             GameEvent event = GameEvent.builder()
                     .type("NEXT_QUESTION")
                     .roomId(state.roomId)
                     .questionIndex(state.currentQuestionIndex)
                     .totalQuestions(state.questions.size())
                     .timeLimitSeconds(state.timeLimitSeconds)
-                    .question(GameEvent.QuestionPayload.builder()
-                            .id(q.getId())
-                            .text(q.getText())
-                            .imageUrl(q.getImageUrl())
-                            .options(options)
-                            .build())
+                    .question(questionPayload(state, q))
                     .player1Score(state.player1Score)
                     .player2Score(state.player2Score)
                     .build();
@@ -472,9 +476,9 @@ public class GameService {
             state.questionTimer = scheduler.schedule(
                     () -> advanceQuestion(state), state.timeLimitSeconds, TimeUnit.SECONDS);
 
-            // Schedule bot answer (2–8 seconds, 55% chance correct)
+            // Schedule bot answer (2–8 seconds, correct with the game's random bot accuracy)
             if (state.isBotGame) {
-                int botDelay = 2 + new Random().nextInt(7);
+                int botDelay = 2 + RANDOM.nextInt(Math.max(1, Math.min(7, state.timeLimitSeconds - 2)));
                 GameQuestion question = q;
                 scheduler.schedule(() -> submitBotAnswer(state, question), botDelay, TimeUnit.SECONDS);
             }
@@ -482,7 +486,7 @@ public class GameService {
     }
 
     private void submitBotAnswer(ActiveGameState state, GameQuestion q) {
-        boolean answerCorrectly = Math.random() < 0.55;
+        boolean answerCorrectly = RANDOM.nextDouble() < state.botAccuracy;
         Long optionId;
         if (answerCorrectly) {
             optionId = q.getOptions().stream()
@@ -496,7 +500,7 @@ public class GameService {
                     .collect(Collectors.toList());
             optionId = wrong.isEmpty()
                     ? q.getOptions().get(0).getId()
-                    : wrong.get(new Random().nextInt(wrong.size())).getId();
+                    : wrong.get(RANDOM.nextInt(wrong.size())).getId();
         }
         submitAnswer(state.roomId, BOT_ID, optionId);
     }
@@ -538,12 +542,26 @@ public class GameService {
 
             int total = state.questions.size();
 
+            // Game rating (Elo): both ratings are read before either is updated.
+            double p1Points = winnerId == null ? 0.5 : state.player1Id.equals(winnerId) ? 1.0 : 0.0;
+            GameRatingService.Change p1Change = null, p2Change = null;
+            try {
+                int p1Before = gameRatingService.currentRating(state.player1Id);
+                int p2Before = state.isBotGame ? state.botRating : gameRatingService.currentRating(state.player2Id);
+                p1Change = gameRatingService.apply(state.player1Id, p2Before, p1Points, state.isBotGame);
+                if (!state.isBotGame) {
+                    p2Change = gameRatingService.apply(state.player2Id, p1Before, 1.0 - p1Points, false);
+                }
+            } catch (Exception e) {
+                log.error("rating update failed for room {}: {}", state.roomId, e.getMessage(), e);
+            }
+
             // Save result only for real players
             saveResult(state.player1Id, state.gameTestId, state.roomId, state.player1Score, total,
-                    state.player1Id.equals(winnerId));
+                    state.player1Id.equals(winnerId), p1Change);
             if (!state.isBotGame) {
                 saveResult(state.player2Id, state.gameTestId, state.roomId, state.player2Score, total,
-                        state.player2Id.equals(winnerId));
+                        state.player2Id.equals(winnerId), p2Change);
             }
 
             GameEvent gameOver = GameEvent.builder()
@@ -553,6 +571,11 @@ public class GameService {
                     .player2Score(state.player2Score)
                     .winnerId(winnerId)
                     .forfeitedBy(forfeitedBy)
+                    .player1RatingChange(p1Change != null ? p1Change.delta() : null)
+                    .player1Rating(p1Change != null ? p1Change.after() : null)
+                    .player2RatingChange(p2Change != null ? p2Change.delta() : null)
+                    .player2Rating(state.isBotGame ? Integer.valueOf(state.botRating)
+                            : p2Change != null ? p2Change.after() : null)
                     .build();
             messaging.convertAndSend("/topic/game/" + state.roomId, gameOver);
         } catch (Exception e) {
@@ -600,7 +623,8 @@ public class GameService {
         }
     }
 
-    private void saveResult(Long userId, Long gameTestId, Long roomId, int score, int total, boolean won) {
+    private void saveResult(Long userId, Long gameTestId, Long roomId, int score, int total, boolean won,
+                            GameRatingService.Change ratingChange) {
         int prevTop = gamePlayerResultRepository.findTopScore(gameTestId);
         Long prevLeader = gamePlayerResultRepository
                 .findTopUserIds(gameTestId, PageRequest.of(0, 1))
@@ -613,6 +637,10 @@ public class GameService {
         result.setScore(score);
         result.setTotalQuestions(total);
         result.setWon(won);
+        if (ratingChange != null) {
+            result.setRatingBefore(ratingChange.before());
+            result.setRatingAfter(ratingChange.after());
+        }
         gamePlayerResultRepository.save(result);
 
         // Notify the dethroned leader (real user, not a bot, not the same person).
@@ -632,6 +660,18 @@ public class GameService {
                 }
             });
         }
+    }
+
+    private GameEvent.QuestionPayload questionPayload(ActiveGameState state, GameQuestion q) {
+        List<GameEvent.OptionPayload> options = state.shuffledOptions.getOrDefault(q.getId(),
+                q.getOptions().stream().map(o -> new GameEvent.OptionPayload(o.getId(), o.getText())).toList());
+        return GameEvent.QuestionPayload.builder()
+                .id(q.getId())
+                .text(q.getText())
+                .imageUrl(minioService.presign(q.getImageUrl()))
+                .figure(figureValidator.fromJson(q.getFigure()))
+                .options(options)
+                .build();
     }
 
     private String displayName(User u) {
@@ -662,6 +702,11 @@ public class GameService {
         final Map<Long, Long> currentAnswers = new ConcurrentHashMap<>();
         volatile ScheduledFuture<?> questionTimer;
         final Object lock = new Object();
+        /** questionId -> options in this game's random order */
+        final Map<Long, List<GameEvent.OptionPayload>> shuffledOptions = new ConcurrentHashMap<>();
+        /** Bot: probability of answering correctly (random per game) and virtual rating. */
+        double botAccuracy = 0.55;
+        int botRating = UserGameRating.INITIAL_RATING;
     }
 
     public record GameTestSummary(Long id, String title, String description,

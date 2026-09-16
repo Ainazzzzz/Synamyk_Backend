@@ -16,6 +16,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import synamyk.dto.game.GameHistoryEntry;
+import synamyk.dto.game.GameRatingResponse;
+import synamyk.service.GameRatingService;
+import org.springframework.data.domain.Page;
 import synamyk.dto.game.GameStateResponse;
 import synamyk.dto.game.JoinGameResponse;
 import synamyk.entities.User;
@@ -40,12 +43,14 @@ import java.util.List;
         8. Отправить ответ: `/app/game/{roomId}/answer` `{ "optionId": 103 }`
         9. Получить `ANSWER_RESULT`, затем следующий `NEXT_QUESTION` или `GAME_OVER`
 
-        > Если соперник не найдётся за **15 секунд** — игра начнётся автоматически против системы.
+        > Если соперник не найдётся за **15 секунд** — игра начнётся автоматически против бота (сила бота случайная в каждой игре).
+        > Вопросы и варианты ответов в каждой игре перемешиваются. После игры меняется рейтинг: `GET /api/game/rating/me`, `GET /api/game/leaderboard`.
         """)
 @SecurityRequirement(name = "Bearer")
 public class GameRoomController {
 
     private final GameService gameService;
+    private final GameRatingService gameRatingService;
 
     @GetMapping("/tests")
     @Operation(
@@ -193,5 +198,25 @@ public class GameRoomController {
     ) {
         gameService.leaveQueue(gameTestId, user.getId());
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/rating/me")
+    @Operation(
+        summary = "Мой игровой рейтинг",
+        description = "Рейтинг Эло (старт 1000): победа — плюс, поражение — минус, против сильного соперника даёт больше. "
+                + "Игры с ботом считаются с половинным коэффициентом. Лига, место, серия побед."
+    )
+    public ResponseEntity<GameRatingResponse> myRating(@AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(gameRatingService.me(user.getId(), user.getLanguage()));
+    }
+
+    @GetMapping("/leaderboard")
+    @Operation(summary = "Таблица лидеров игр", description = "Игроки, сыгравшие хотя бы одну игру, по рейтингу по убыванию.")
+    public ResponseEntity<Page<GameRatingResponse>> leaderboard(
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "50") int size,
+        @AuthenticationPrincipal User user
+    ) {
+        return ResponseEntity.ok(gameRatingService.leaderboard(page, size, user.getLanguage()));
     }
 }

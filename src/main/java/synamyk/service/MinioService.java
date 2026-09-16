@@ -57,8 +57,21 @@ public class MinioService {
         validateImage(file);
 
         String ext = getExtension(file.getOriginalFilename());
-        String objectKey = buildKey(type, entityId, ext);
+        return put(file, buildKey(type, entityId, ext));
+    }
 
+    /** Uploads a PDF (max 30 MB) to {@code texts/} and returns the object key. */
+    public String uploadPdf(MultipartFile file) {
+        if (file == null || file.isEmpty()) throw new IllegalArgumentException("File is empty.");
+        if (file.getSize() > 30L * 1024 * 1024) throw new IllegalArgumentException("File too large. Max: 30 MB.");
+        String ct = file.getContentType();
+        String name = file.getOriginalFilename();
+        boolean pdf = "application/pdf".equalsIgnoreCase(ct) || (name != null && name.toLowerCase().endsWith(".pdf"));
+        if (!pdf) throw new IllegalArgumentException("Only PDF files are allowed.");
+        return put(file, "texts/" + UUID.randomUUID() + ".pdf");
+    }
+
+    private String put(MultipartFile file, String objectKey) {
         try {
             minioClient.putObject(PutObjectArgs.builder()
                     .bucket(bucket)

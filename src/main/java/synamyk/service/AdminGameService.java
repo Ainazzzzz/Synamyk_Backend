@@ -22,6 +22,7 @@ public class AdminGameService {
     private final GameRoomRepository gameRoomRepository;
     private final GamePlayerResultRepository gamePlayerResultRepository;
     private final UserRepository userRepository;
+    private final synamyk.util.FigureValidator figureValidator;
 
     // ===== CRUD for game tests =====
 
@@ -164,6 +165,7 @@ public class AdminGameService {
         q.setGameTest(test);
         q.setText(req.getText());
         q.setImageUrl(req.getImageUrl());
+        q.setFigure(figureValidator.toJson(req.getFigure()));
         q.setOrderIndex(req.getOrderIndex() != null ? req.getOrderIndex() : defaultOrder);
         q.setActive(true);
         q = gameQuestionRepository.save(q);
@@ -188,6 +190,7 @@ public class AdminGameService {
         if (includeQuestions) {
             questions = gameQuestionRepository.findByGameTestId(test.getId()).stream()
                     .map(q -> GameTestResponse.QuestionDetail.builder()
+                            .figure(figureValidator.fromJson(q.getFigure()))
                             .id(q.getId())
                             .text(q.getText())
                             .imageUrl(q.getImageUrl())

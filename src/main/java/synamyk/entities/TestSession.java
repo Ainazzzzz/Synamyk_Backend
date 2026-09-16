@@ -29,6 +29,11 @@ public class TestSession extends BaseEntity {
     @JoinColumn(name = "sub_test_id", nullable = false)
     private SubTest subTest;
 
+    /** Full-test attempt this section session belongs to; {@code null} for a standalone sub-test run. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "attempt_id")
+    private TestAttempt attempt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default

@@ -32,7 +32,9 @@ public class ProfileService {
     private final PasswordEncoder passwordEncoder;
     private final SmsProService smsProService;
     private final MinioService minioService;
+    private final synamyk.repo.UserGameRatingRepository gameRatingRepository;
 
+    @Transactional(readOnly = true)
     public ProfileResponse getProfile(Long userId) {
         User user = findUser(userId);
 
@@ -49,6 +51,14 @@ public class ProfileService {
                 .language(user.getLanguage())
                 .regionId(user.getRegion() != null ? user.getRegion().getId() : null)
                 .regionName(user.getRegion() != null ? user.getRegion().getName() : null)
+                .districtId(user.getSchool() != null ? user.getSchool().getDistrict().getId() : null)
+                .districtName(user.getSchool() != null ? user.getSchool().getDistrict().getName() : null)
+                .schoolId(user.getSchool() != null ? user.getSchool().getId() : null)
+                .schoolName(user.getSchool() != null ? user.getSchool().getName() : null)
+                .referralCode(user.getReferralCode())
+                .gameRating(gameRatingRepository.findByUserId(userId)
+                        .map(synamyk.entities.UserGameRating::getRating)
+                        .orElse(synamyk.entities.UserGameRating.INITIAL_RATING))
                 .completedTests(completedTests)
                 .totalScore(totalScore)
                 .build();

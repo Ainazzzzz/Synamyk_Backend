@@ -16,6 +16,13 @@ public class AdminQuestionResponse {
     private String text;
     private String textKy;
     private String imageUrl;
+    private String questionType;
+    private String columnA;
+    private String columnAKy;
+    private String columnB;
+    private String columnBKy;
+    private java.util.Map<String, Object> figure;
+    private Long passageId;
     private String explanation;
     private String explanationKy;
     private Integer orderIndex;

@@ -48,6 +48,9 @@ public class GameTestResponse {
         @Schema(description = "URL изображения (необязательно)")
         private String imageUrl;
 
+        @Schema(description = "Чертёж (необязательно)")
+        private java.util.Map<String, Object> figure;
+
         @Schema(description = "Порядковый номер", example = "0")
         private Integer orderIndex;
 

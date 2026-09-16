@@ -56,6 +56,14 @@ public class Test extends BaseEntity {
     @Column
     private LocalDateTime freeUntil;
 
+    /**
+     * Maximum ОРТ score for the whole test (real ОРТ: 245). Distributed across
+     * sections, see {@link synamyk.util.OrtScoring}.
+     */
+    @Column(nullable = false, columnDefinition = "integer default 245")
+    @Builder.Default
+    private Integer maxScore = 245;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean active = true;

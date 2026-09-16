@@ -12,6 +12,11 @@ import synamyk.dto.PaymentHistoryEntry;
 import synamyk.dto.WebhookData;
 import synamyk.util.L10n;
 import synamyk.entities.Payment;
+import synamyk.entities.ProductPrice;
+import synamyk.entities.UserAllAccess;
+import synamyk.enums.PaymentProduct;
+import synamyk.enums.ProductCode;
+import synamyk.repo.UserAllAccessRepository;
 import synamyk.entities.SubTest;
 import synamyk.entities.Test;
 import synamyk.entities.User;
@@ -44,6 +49,9 @@ public class PaymentService {
     private final UserSubTestAccessRepository subTestAccessRepository;
     private final AccessResolver accessResolver;
     private final FinikConfig finikConfig;
+    private final UserAllAccessRepository allAccessRepository;
+    private final ProductService productService;
+    private final ReferralService referralService;
 
     /**
      * Step 1 for Flutter SDK: create a Payment record in DB and return config
@@ -60,8 +68,11 @@ public class PaymentService {
         return paymentRepository.findMyPayments(userId, Payment.PaymentStatus.PENDING, pageable)
                 .map(p -> new PaymentHistoryEntry(
                         p.getPaymentId(),
-                        p.getTest().getId(),
-                        L10n.pick(p.getTest().getTitle(), p.getTest().getTitleKy(), lang),
+                        p.resolveProduct().name(),
+                        p.getTest() != null ? p.getTest().getId() : null,
+                        p.getTest() != null
+                                ? L10n.pick(p.getTest().getTitle(), p.getTest().getTitleKy(), lang)
+                                : productTitle(p.resolveProduct(), lang),
                         p.getSubTest() != null ? p.getSubTest().getId() : null,
                         p.getSubTest() != null
                                 ? L10n.pick(p.getSubTest().getTitle(), p.getSubTest().getTitleKy(), lang)
@@ -81,10 +92,15 @@ public class PaymentService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         Test test = testRepository.findById(testId)
-                .orElseThrow(() -> new RuntimeException("Test not found"));
+                .orElseThrow(() -> new AppException("Тест не найден.", "Тест табылган жок."));
 
-        if (accessRepository.existsActiveAccess(userId, testId, LocalDateTime.now())) {
+        LocalDateTime now = LocalDateTime.now();
+        if (accessRepository.existsActiveAccess(userId, testId, now)
+                || accessResolver.hasAllAccess(userId, ProductCode.ALL_TESTS, now)) {
             throw new AppException("Уже куплено.", "Мурунтан эле сатып алынган.");
+        }
+        if (test.getPrice() == null || test.getPrice().signum() <= 0) {
+            throw new AppException("Этот тест не продаётся.", "Бул тест сатылбайт.");
         }
 
         UUID paymentId = UUID.randomUUID();
@@ -92,6 +108,7 @@ public class PaymentService {
         Payment payment = Payment.builder()
                 .user(user)
                 .test(test)
+                .product(PaymentProduct.TEST)
                 .paymentId(paymentId)
                 .amount(test.getPrice())
                 .status(Payment.PaymentStatus.PENDING)
@@ -135,6 +152,7 @@ public class PaymentService {
                 .user(user)
                 .test(test)
                 .subTest(subTest)
+                .product(PaymentProduct.SUB_TEST)
                 .paymentId(paymentId)
                 .amount(price)
                 .status(Payment.PaymentStatus.PENDING)
@@ -149,6 +167,42 @@ public class PaymentService {
                 .nameEn(truncate(test.getTitle() + " — " + subTest.getTitle(), 50))
                 .callbackUrl(finikConfig.getWebhookUrl())
                 .build();
+    }
+
+    /** «Купить все тесты» / «Открыть все тексты». */
+    @Transactional
+    public InitPaymentResponse initPaymentProduct(Long userId, ProductCode code) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException("Пользователь не найден.", "Колдонуучу табылган жок."));
+        if (accessResolver.hasAllAccess(userId, code, LocalDateTime.now())) {
+            throw new AppException("Уже куплено.", "Мурунтан эле сатып алынган.");
+        }
+        ProductPrice product = productService.requireSellable(code);
+
+        UUID paymentId = UUID.randomUUID();
+        paymentRepository.save(Payment.builder()
+                .user(user)
+                .product(code.toPaymentProduct())
+                .paymentId(paymentId)
+                .amount(product.getPrice())
+                .status(Payment.PaymentStatus.PENDING)
+                .build());
+        log.info("Payment record created (product): paymentId={}, userId={}, product={}", paymentId, userId, code);
+
+        return InitPaymentResponse.builder()
+                .paymentId(paymentId)
+                .amount(product.getPrice())
+                .nameEn(code == ProductCode.ALL_TESTS ? "Synamyk - all tests" : "Synamyk - all reading texts")
+                .callbackUrl(finikConfig.getWebhookUrl())
+                .build();
+    }
+
+    private static String productTitle(PaymentProduct product, String lang) {
+        return switch (product) {
+            case ALL_TESTS -> ProductService.title(ProductCode.ALL_TESTS, lang);
+            case ALL_TEXTS -> ProductService.title(ProductCode.ALL_TEXTS, lang);
+            default -> null;
+        };
     }
 
     private String truncate(String str, int max) {
@@ -189,15 +243,27 @@ public class PaymentService {
         paymentRepository.save(payment);
 
         grantAccess(payment);
+        referralService.onPaymentCompleted(payment);
 
-        log.info("Payment completed: paymentId={}, userId={}, testId={}, subTestId={}",
-                payment.getPaymentId(), payment.getUser().getId(), payment.getTest().getId(),
+        log.info("Payment completed: paymentId={}, userId={}, product={}, testId={}, subTestId={}",
+                payment.getPaymentId(), payment.getUser().getId(), payment.resolveProduct(),
+                payment.getTest() != null ? payment.getTest().getId() : null,
                 payment.getSubTest() != null ? payment.getSubTest().getId() : null);
     }
 
     /** Route a completed payment to the right access grant. */
     private void grantAccess(Payment payment) {
-        if (payment.getSubTest() != null) {
+        PaymentProduct product = payment.resolveProduct();
+        if (product == PaymentProduct.ALL_TESTS || product == PaymentProduct.ALL_TEXTS) {
+            ProductCode code = product == PaymentProduct.ALL_TESTS ? ProductCode.ALL_TESTS : ProductCode.ALL_TEXTS;
+            User user = payment.getUser();
+            UserAllAccess access = allAccessRepository.findByUserIdAndProduct(user.getId(), code)
+                    .orElseGet(() -> UserAllAccess.builder().user(user).product(code).build());
+            access.setGrantedAt(LocalDateTime.now());
+            access.setExpiresAt(null); // a purchase grants permanent access
+            allAccessRepository.save(access);
+            log.info("All-access granted (permanent): userId={}, product={}", user.getId(), code);
+        } else if (payment.getSubTest() != null) {
             User user = payment.getUser();
             SubTest subTest = payment.getSubTest();
             UserSubTestAccess access = subTestAccessRepository

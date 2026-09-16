@@ -49,6 +49,17 @@ public final class PushMessages {
                 "Кайрылып, тесттерди улантыңыз");
     }
 
+    /** An invited friend made a purchase — the inviter got a free test. */
+    public static Text referralRewardEarned(String friendName) {
+        String who = friendName != null && !friendName.isBlank() ? friendName : "Твой друг";
+        String whoKy = friendName != null && !friendName.isBlank() ? friendName : "Досуң";
+        return new Text(
+                "Бесплатный тест за друга!",
+                who + " купил доступ по твоему приглашению. Выбери любой тест — он откроется бесплатно",
+                "Дос үчүн акысыз тест!",
+                whoKy + " сенин чакыруу менен сатып алды. Каалаган тестти танда — акысыз ачылат");
+    }
+
     private static String coalesce(String a, String b) {
         return a != null && !a.isBlank() ? a : b;
     }

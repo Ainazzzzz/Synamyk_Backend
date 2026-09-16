@@ -200,4 +200,33 @@ public class AdminTestController {
         adminTestService.deleteQuestion(questionId);
         return ResponseEntity.noContent().build();
     }
+
+    // ===== READING PASSAGES =====
+
+    @GetMapping("/sub-tests/{subTestId}/passages")
+    @Operation(summary = "Тексты для чтения подтеста", description = "Тексты «Окуу жана түшүнүү», к которым привязываются вопросы (passageId).")
+    public ResponseEntity<List<PassageResponse>> getPassages(@PathVariable Long subTestId) {
+        return ResponseEntity.ok(adminTestService.getPassages(subTestId));
+    }
+
+    @PostMapping("/sub-tests/{subTestId}/passages")
+    @Operation(summary = "Создать текст для чтения")
+    public ResponseEntity<PassageResponse> createPassage(@PathVariable Long subTestId,
+                                                         @Valid @RequestBody PassageRequest request) {
+        return ResponseEntity.ok(adminTestService.createPassage(subTestId, request));
+    }
+
+    @PutMapping("/passages/{passageId}")
+    @Operation(summary = "Изменить текст для чтения")
+    public ResponseEntity<PassageResponse> updatePassage(@PathVariable Long passageId,
+                                                         @Valid @RequestBody PassageRequest request) {
+        return ResponseEntity.ok(adminTestService.updatePassage(passageId, request));
+    }
+
+    @DeleteMapping("/passages/{passageId}")
+    @Operation(summary = "Удалить (скрыть) текст для чтения")
+    public ResponseEntity<Void> deletePassage(@PathVariable Long passageId) {
+        adminTestService.deletePassage(passageId);
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -19,6 +19,7 @@ public class AdminTestResponse {
     private String descriptionKy;
     private String iconUrl;
     private BigDecimal price;          // bundle price: unlocks all paid sub-tests
+    private Integer maxScore;          // ОРТ max of the whole test
     private LocalDateTime freeFrom;    // free-window start, null = none
     private LocalDateTime freeUntil;   // free-window end, null = none
     private Boolean active;
@@ -39,6 +40,8 @@ public class AdminTestResponse {
         private LocalDateTime freeFrom;    // free-window start, null = none
         private LocalDateTime freeUntil;   // free-window end, null = none
         private Integer durationMinutes;
+        private Integer maxScore;          // explicit ОРТ points, null = proportional share
+        private String iconUrl;
         private Long questionCount;
         private Boolean active;
     }

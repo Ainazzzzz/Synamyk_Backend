@@ -34,6 +34,8 @@ public class AuthService {
     private final SmsProService smsService;
     private final ProfileService profileService;
     private final RefreshTokenService refreshTokenService;
+    private final SchoolService schoolService;
+    private final ReferralService referralService;
 
     /**
      * Step 1 of registration: create account with phone + password, send OTP.
@@ -136,6 +138,13 @@ public class AuthService {
         user.setLastName(request.getLastName());
         user.setRegion(region);
         userRepository.save(user);
+
+        if (request.getSchoolId() != null) {
+            schoolService.setSchool(user.getId(), request.getSchoolId(), user.getLanguage());
+        }
+        if (request.getReferralCode() != null && !request.getReferralCode().isBlank() && user.getReferredBy() == null) {
+            referralService.apply(user.getId(), request.getReferralCode(), user.getLanguage());
+        }
 
         String token = jwtService.generateToken(user, user.getPhone());
         String refreshToken = refreshTokenService.createRefreshToken(user).getToken();

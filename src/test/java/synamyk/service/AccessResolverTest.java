@@ -6,6 +6,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import synamyk.entities.SubTest;
+import synamyk.repo.UserAllAccessRepository;
 import synamyk.repo.UserSubTestAccessRepository;
 import synamyk.repo.UserTestAccessRepository;
 
@@ -20,6 +21,7 @@ class AccessResolverTest {
 
     @Mock UserTestAccessRepository userTestAccessRepo;
     @Mock UserSubTestAccessRepository userSubTestAccessRepo;
+    @Mock UserAllAccessRepository userAllAccessRepo;
 
     @InjectMocks AccessResolver resolver;
 

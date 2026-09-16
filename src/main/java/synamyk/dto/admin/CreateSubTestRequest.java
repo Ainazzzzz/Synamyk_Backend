@@ -41,4 +41,12 @@ public class CreateSubTestRequest {
     @NotNull
     @Schema(description = "Duration of the sub-test in minutes", example = "30")
     private Integer durationMinutes;
+
+    @jakarta.validation.constraints.Min(0)
+    @Schema(description = "ОРТ points of this section. null = share of the test maxScore proportional to the section's points "
+            + "(default ОРТ layout: Математика 60 вопросов → 98, остальные разделы по 30 → 49).", example = "49")
+    private Integer maxScore;
+
+    @Schema(description = "Section icon (MinIO key or URL)")
+    private String iconUrl;
 }

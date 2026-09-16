@@ -40,6 +40,13 @@ public class GamePlayerResult {
     @Column(nullable = false)
     private Boolean won = false;
 
+    /** Game rating before / after this game ({@code null} on rows created before ratings existed). */
+    @Column
+    private Integer ratingBefore;
+
+    @Column
+    private Integer ratingAfter;
+
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();

@@ -72,6 +72,16 @@ public class SubTest extends BaseEntity {
     @Builder.Default
     private Integer durationMinutes = 30;
 
+    /**
+     * ОРТ score this section contributes to the test total. {@code null} = share of
+     * {@link Test#getMaxScore()} proportional to the section's points.
+     */
+    @Column
+    private Integer maxScore;
+
+    @Column(length = 1000)
+    private String iconUrl;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean active = true;

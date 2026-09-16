@@ -33,4 +33,8 @@ public class CreateTestRequest {
     @NotNull
     @Schema(description = "Price to unlock all paid sub-tests", example = "500.00")
     private BigDecimal price;
+
+    @jakarta.validation.constraints.Min(1)
+    @Schema(description = "Max ОРТ score of the whole test (default 245)", example = "245")
+    private Integer maxScore = 245;
 }

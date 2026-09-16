@@ -21,8 +21,11 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     boolean existsByUserIdAndTestIdAndStatus(Long userId, Long testId, Payment.PaymentStatus status);
     List<Payment> findByUserIdOrderByCreatedAtDesc(Long userId);
 
+    /** Completed purchases of a user (any product); used for the referral «first purchase» check. */
+    long countByUserIdAndStatus(Long userId, Payment.PaymentStatus status);
+
     /** User's payment history, excluding never-completed PENDING attempts (there are many abandoned ones). */
-    @Query(value = "SELECT p FROM Payment p JOIN FETCH p.test t LEFT JOIN FETCH p.subTest st"
+    @Query(value = "SELECT p FROM Payment p LEFT JOIN FETCH p.test t LEFT JOIN FETCH p.subTest st"
             + " WHERE p.user.id = :userId AND p.status <> :excluded"
             + " ORDER BY p.createdAt DESC",
             countQuery = "SELECT COUNT(p) FROM Payment p"
@@ -31,7 +34,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
                                 @Param("excluded") Payment.PaymentStatus excluded,
                                 Pageable pageable);
 
-    @Query(value = "SELECT p FROM Payment p JOIN FETCH p.user u JOIN FETCH p.test t LEFT JOIN FETCH p.subTest st"
+    @Query(value = "SELECT p FROM Payment p JOIN FETCH p.user u LEFT JOIN FETCH p.test t LEFT JOIN FETCH p.subTest st"
             + " WHERE (p.status = COALESCE(:status, p.status))"
             + " AND (p.createdAt >= COALESCE(:dateFrom, p.createdAt))"
             + " AND (p.createdAt <= COALESCE(:dateTo, p.createdAt))"
@@ -98,7 +101,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
            "GROUP BY 1 ORDER BY 1", nativeQuery = true)
     List<Object[]> revenueByMonth(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
-    @Query("SELECT p FROM Payment p JOIN FETCH p.user u JOIN FETCH p.test t LEFT JOIN FETCH p.subTest st"
+    @Query("SELECT p FROM Payment p JOIN FETCH p.user u LEFT JOIN FETCH p.test t LEFT JOIN FETCH p.subTest st"
             + " WHERE (p.status = COALESCE(:status, p.status))"
             + " AND (p.createdAt >= COALESCE(:dateFrom, p.createdAt))"
             + " AND (p.createdAt <= COALESCE(:dateTo, p.createdAt))"
