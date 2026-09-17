@@ -61,6 +61,19 @@ public class  User extends BaseEntity implements UserDetails {
     @Column(length = 255)
     private String email;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id")
+    private School school;
+
+    /** Personal invite code, generated on first request. */
+    @Column(length = 20, unique = true)
+    private String referralCode;
+
+    /** Who invited this user. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "referred_by_id")
+    private User referredBy;
+
     /** Interface language preference: RU or KY. */
     @Column(nullable = false, length = 10)
     @Builder.Default

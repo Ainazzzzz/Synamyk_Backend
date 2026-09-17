@@ -34,6 +34,10 @@ public class GameQuestion {
     @Column
     private String imageUrl;
 
+    /** Validated figure JSON (coordinate plane / geometry drawing), see {@code FigureValidator}. */
+    @Column(columnDefinition = "TEXT")
+    private String figure;
+
     @Column(nullable = false)
     private Integer orderIndex = 0;
 

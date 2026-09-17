@@ -12,9 +12,11 @@ import synamyk.enums.PushCategory;
 import synamyk.enums.PushDataType;
 import synamyk.exception.AppException;
 import synamyk.repo.*;
+import synamyk.util.FigureValidator;
 import synamyk.util.PushMessages;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -32,6 +34,8 @@ public class AdminTestService {
     private final MinioService minioService;
     private final UserTestAccessRepository userTestAccessRepository;
     private final PushNotificationService pushNotificationService;
+    private final ReadingPassageRepository passageRepository;
+    private final FigureValidator figureValidator;
 
     // ===== TESTS =====
 
@@ -78,6 +82,7 @@ public class AdminTestService {
                 .iconUrl(request.getIconUrl())
                 .subject(request.getSubject())
                 .price(request.getPrice())
+                .maxScore(request.getMaxScore() != null ? request.getMaxScore() : 245)
                 .active(true)
                 .build();
         return toAdminTestResponse(testRepository.save(test));
@@ -94,6 +99,7 @@ public class AdminTestService {
         test.setIconUrl(request.getIconUrl());
         test.setSubject(request.getSubject());
         test.setPrice(request.getPrice());
+        if (request.getMaxScore() != null) test.setMaxScore(request.getMaxScore());
         return toAdminTestResponse(testRepository.save(test));
     }
 
@@ -230,6 +236,8 @@ public class AdminTestService {
                 .isPaid(paid)
                 .price(price)
                 .durationMinutes(request.getDurationMinutes())
+                .maxScore(request.getMaxScore())
+                .iconUrl(request.getIconUrl())
                 .active(true)
                 .build();
 
@@ -263,6 +271,8 @@ public class AdminTestService {
         subTest.setIsPaid(paid);
         subTest.setPrice(price);
         subTest.setDurationMinutes(request.getDurationMinutes());
+        subTest.setMaxScore(request.getMaxScore());
+        subTest.setIconUrl(request.getIconUrl());
 
         return toAdminSubTestResponse(subTestRepository.save(subTest));
     }
@@ -288,11 +298,8 @@ public class AdminTestService {
         SubTest subTest = subTestRepository.findById(subTestId)
                 .orElseThrow(() -> new AppException("Подтест не найден.", "Подтест табылган жок."));
 
-        boolean hasCorrect = request.getOptions().stream()
-                .anyMatch(o -> Boolean.TRUE.equals(o.getIsCorrect()));
-        if (!hasCorrect) {
-            throw new AppException("Хотя бы один вариант должен быть отмечен как правильный.", "Жок дегенде бир туура жооп белгиленүү керек.");
-        }
+        List<CreateQuestionRequest.AnswerOptionRequest> options = resolveOptions(request);
+        validateQuestionContent(request);
 
         Question question = Question.builder()
                 .subTest(subTest)
@@ -305,13 +312,20 @@ public class AdminTestService {
                 .explanationKy(request.getExplanationKy())
                 .orderIndex(request.getOrderIndex())
                 .pointValue(request.getPointValue())
+                .questionType(typeOf(request))
+                .columnA(request.getColumnA())
+                .columnAKy(request.getColumnAKy())
+                .columnB(request.getColumnB())
+                .columnBKy(request.getColumnBKy())
+                .figure(figureValidator.toJson(request.getFigure()))
+                .passage(resolvePassage(request.getPassageId(), subTestId))
                 .active(true)
                 .build();
 
         question = questionRepository.save(question);
 
         int optIndex = 0;
-        for (CreateQuestionRequest.AnswerOptionRequest optReq : request.getOptions()) {
+        for (CreateQuestionRequest.AnswerOptionRequest optReq : options) {
             AnswerOption option = AnswerOption.builder()
                     .question(question)
                     .label(optReq.getLabel())
@@ -340,12 +354,21 @@ public class AdminTestService {
         question.setExplanationKy(request.getExplanationKy());
         question.setOrderIndex(request.getOrderIndex());
         question.setPointValue(request.getPointValue());
+        List<CreateQuestionRequest.AnswerOptionRequest> resolvedOptions = resolveOptions(request);
+        validateQuestionContent(request);
+        question.setQuestionType(typeOf(request));
+        question.setColumnA(request.getColumnA());
+        question.setColumnAKy(request.getColumnAKy());
+        question.setColumnB(request.getColumnB());
+        question.setColumnBKy(request.getColumnBKy());
+        question.setFigure(figureValidator.toJson(request.getFigure()));
+        question.setPassage(resolvePassage(request.getPassageId(), question.getSubTest().getId()));
 
         // Replace options — merge in place so options already referenced by user
         // answers (user_answer_selected_options) are not hard-deleted.
         List<AnswerOption> existing =
                 optionRepository.findByQuestionIdOrderByOrderIndexAsc(questionId);
-        List<CreateQuestionRequest.AnswerOptionRequest> incoming = request.getOptions();
+        List<CreateQuestionRequest.AnswerOptionRequest> incoming = resolvedOptions;
 
         for (int i = 0; i < Math.max(existing.size(), incoming.size()); i++) {
             if (i < existing.size() && i < incoming.size()) {
@@ -389,6 +412,135 @@ public class AdminTestService {
         questionRepository.save(question);
     }
 
+    // ----- question content helpers -----
+
+    private static synamyk.enums.QuestionType typeOf(CreateQuestionRequest r) {
+        return r.getQuestionType() != null ? r.getQuestionType() : synamyk.enums.QuestionType.STANDARD;
+    }
+
+    /** Explicit options, or the 4 standard ОРТ comparison options generated from comparisonAnswer. */
+    private List<CreateQuestionRequest.AnswerOptionRequest> resolveOptions(CreateQuestionRequest r) {
+        List<CreateQuestionRequest.AnswerOptionRequest> options = r.getOptions();
+        if ((options == null || options.isEmpty())
+                && typeOf(r) == synamyk.enums.QuestionType.COMPARISON && r.getComparisonAnswer() != null) {
+            options = comparisonOptions(r.getComparisonAnswer());
+        }
+        if (options == null || options.size() < 2 || options.size() > 6) {
+            throw new AppException("Нужно от 2 до 6 вариантов ответа.", "2ден 6га чейин жооп варианты керек.");
+        }
+        if (options.stream().noneMatch(o -> Boolean.TRUE.equals(o.getIsCorrect()))) {
+            throw new AppException("Хотя бы один вариант должен быть отмечен как правильный.", "Жок дегенде бир туура жооп белгиленүү керек.");
+        }
+        return options;
+    }
+
+    static List<CreateQuestionRequest.AnswerOptionRequest> comparisonOptions(CreateQuestionRequest.ComparisonAnswer answer) {
+        String[][] rows = {
+                {"А", "Колонка А больше", "Колонка А чоң"},
+                {"Б", "Колонка Б больше", "Колонка Б чоң"},
+                {"В", "Равны", "Тең"},
+                {"Г", "Невозможно определить", "Аныктоо мүмкүн эмес"}
+        };
+        List<CreateQuestionRequest.AnswerOptionRequest> result = new ArrayList<>();
+        for (int i = 0; i < rows.length; i++) {
+            CreateQuestionRequest.AnswerOptionRequest o = new CreateQuestionRequest.AnswerOptionRequest();
+            o.setLabel(rows[i][0]);
+            o.setText(rows[i][1]);
+            o.setTextKy(rows[i][2]);
+            o.setIsCorrect(i == answer.ordinal());
+            o.setOrderIndex(i);
+            result.add(o);
+        }
+        return result;
+    }
+
+    private void validateQuestionContent(CreateQuestionRequest r) {
+        if (typeOf(r) == synamyk.enums.QuestionType.COMPARISON
+                && (isBlank(r.getColumnA()) || isBlank(r.getColumnB()))) {
+            throw new AppException(
+                    "Для вопроса-сравнения заполните «Колонка А» и «Колонка Б».",
+                    "Салыштыруу суроосу үчүн «Колонка А» жана «Колонка Б» толтуруңуз.");
+        }
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
+
+    private ReadingPassage resolvePassage(Long passageId, Long subTestId) {
+        if (passageId == null) return null;
+        ReadingPassage passage = passageRepository.findById(passageId)
+                .orElseThrow(() -> new AppException("Текст не найден.", "Текст табылган жок."));
+        if (!passage.getSubTest().getId().equals(subTestId)) {
+            throw new AppException("Текст относится к другому подтесту.", "Текст башка подтестке тиешелүү.");
+        }
+        return passage;
+    }
+
+    // ===== PASSAGES =====
+
+    public List<PassageResponse> getPassages(Long subTestId) {
+        return passageRepository.findBySubTestIdOrderByOrderIndexAsc(subTestId).stream()
+                .map(this::toPassageResponse)
+                .toList();
+    }
+
+    @Transactional
+    public PassageResponse createPassage(Long subTestId, PassageRequest request) {
+        SubTest subTest = subTestRepository.findById(subTestId)
+                .orElseThrow(() -> new AppException("Подтест не найден.", "Подтест табылган жок."));
+        ReadingPassage passage = ReadingPassage.builder()
+                .subTest(subTest)
+                .title(request.getTitle())
+                .titleKy(request.getTitleKy())
+                .text(request.getText())
+                .textKy(request.getTextKy())
+                .imageUrl(request.getImageUrl())
+                .orderIndex(request.getOrderIndex() != null ? request.getOrderIndex() : 0)
+                .active(true)
+                .build();
+        return toPassageResponse(passageRepository.save(passage));
+    }
+
+    @Transactional
+    public PassageResponse updatePassage(Long passageId, PassageRequest request) {
+        ReadingPassage passage = passageRepository.findById(passageId)
+                .orElseThrow(() -> new AppException("Текст не найден.", "Текст табылган жок."));
+        passage.setTitle(request.getTitle());
+        passage.setTitleKy(request.getTitleKy());
+        passage.setText(request.getText());
+        passage.setTextKy(request.getTextKy());
+        passage.setImageUrl(request.getImageUrl());
+        if (request.getOrderIndex() != null) passage.setOrderIndex(request.getOrderIndex());
+        return toPassageResponse(passageRepository.save(passage));
+    }
+
+    /** Soft delete; questions keep their link (history) but the passage is hidden from new runs. */
+    @Transactional
+    public void deletePassage(Long passageId) {
+        ReadingPassage passage = passageRepository.findById(passageId)
+                .orElseThrow(() -> new AppException("Текст не найден.", "Текст табылган жок."));
+        passage.setActive(false);
+        passageRepository.save(passage);
+    }
+
+    private PassageResponse toPassageResponse(ReadingPassage p) {
+        long questionCount = questionRepository.findBySubTestIdAndActiveTrueOrderByOrderIndexAsc(p.getSubTest().getId())
+                .stream().filter(q -> q.getPassage() != null && q.getPassage().getId().equals(p.getId())).count();
+        return PassageResponse.builder()
+                .id(p.getId())
+                .subTestId(p.getSubTest().getId())
+                .title(p.getTitle())
+                .titleKy(p.getTitleKy())
+                .text(p.getText())
+                .textKy(p.getTextKy())
+                .imageUrl(minioService.presign(p.getImageUrl()))
+                .orderIndex(p.getOrderIndex())
+                .active(p.getActive())
+                .questionCount(questionCount)
+                .build();
+    }
+
     // ===== MAPPERS =====
 
     private AdminTestResponse toAdminTestResponse(Test test) {
@@ -401,6 +553,7 @@ public class AdminTestService {
                 .descriptionKy(test.getDescriptionKy())
                 .iconUrl(minioService.presign(test.getIconUrl()))
                 .price(test.getPrice())
+                .maxScore(test.getMaxScore())
                 .freeFrom(test.getFreeFrom())
                 .freeUntil(test.getFreeUntil())
                 .active(test.getActive())
@@ -421,6 +574,8 @@ public class AdminTestService {
                 .freeFrom(st.getFreeFrom())
                 .freeUntil(st.getFreeUntil())
                 .durationMinutes(st.getDurationMinutes())
+                .maxScore(st.getMaxScore())
+                .iconUrl(minioService.presign(st.getIconUrl()))
                 .questionCount(questionRepository.countBySubTestIdAndActiveTrue(st.getId()))
                 .active(st.getActive())
                 .build();
@@ -446,6 +601,13 @@ public class AdminTestService {
                 .text(q.getText())
                 .textKy(q.getTextKy())
                 .imageUrl(minioService.presign(q.getImageUrl()))
+                .questionType(q.getQuestionType() != null ? q.getQuestionType().name() : "STANDARD")
+                .columnA(q.getColumnA())
+                .columnAKy(q.getColumnAKy())
+                .columnB(q.getColumnB())
+                .columnBKy(q.getColumnBKy())
+                .figure(figureValidator.fromJson(q.getFigure()))
+                .passageId(q.getPassage() != null ? q.getPassage().getId() : null)
                 .explanation(q.getExplanation())
                 .explanationKy(q.getExplanationKy())
                 .orderIndex(q.getOrderIndex())

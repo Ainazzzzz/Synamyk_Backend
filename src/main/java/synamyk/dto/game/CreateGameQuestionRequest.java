@@ -20,6 +20,9 @@ public class CreateGameQuestionRequest {
     @Schema(description = "URL изображения к вопросу (необязательно)", example = "https://cdn.example.com/img/q1.png")
     private String imageUrl;
 
+    @Schema(description = "Чертёж (координатная плоскость / геометрия), формат как у вопросов тестов. null — нет")
+    private java.util.Map<String, Object> figure;
+
     @Schema(description = "Порядковый номер вопроса (необязательно, по умолчанию — порядок добавления)", example = "0")
     private Integer orderIndex;
 

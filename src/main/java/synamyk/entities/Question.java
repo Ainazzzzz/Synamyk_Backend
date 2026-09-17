@@ -3,6 +3,7 @@ package synamyk.entities;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
+import synamyk.enums.QuestionType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +42,34 @@ public class Question extends BaseEntity {
 
     @Column
     private String imageUrl;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20) default 'STANDARD'")
+    @Builder.Default
+    private QuestionType questionType = QuestionType.STANDARD;
+
+    /** «Колонка А» for {@link QuestionType#COMPARISON}. May contain LaTeX. */
+    @Column(columnDefinition = "TEXT")
+    private String columnA;
+
+    @Column(columnDefinition = "TEXT")
+    private String columnAKy;
+
+    /** «Колонка Б» for {@link QuestionType#COMPARISON}. May contain LaTeX. */
+    @Column(columnDefinition = "TEXT")
+    private String columnB;
+
+    @Column(columnDefinition = "TEXT")
+    private String columnBKy;
+
+    /** Validated figure JSON (coordinate plane / geometry drawing), see {@code FigureValidator}. */
+    @Column(columnDefinition = "TEXT")
+    private String figure;
+
+    /** Reading passage this question belongs to («Окуу жана түшүнүү»), {@code null} otherwise. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "passage_id")
+    private ReadingPassage passage;
 
     /**
      * Stored explanation used as fallback / context for AI analysis.

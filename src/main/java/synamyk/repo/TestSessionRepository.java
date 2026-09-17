@@ -22,12 +22,15 @@ public interface TestSessionRepository extends JpaRepository<TestSession, Long> 
     Optional<TestSession> findByUserIdAndSubTestIdAndStatus(
             Long userId, Long subTestId, TestSession.SessionStatus status);
 
-    /** Find any resumable session (IN_PROGRESS or PAUSED) for a user + sub-test. */
+    /** Find any resumable standalone session (IN_PROGRESS or PAUSED) for a user + sub-test; full-test attempt sections are excluded. */
     @Query("SELECT s FROM TestSession s WHERE s.user.id = :userId AND s.subTest.id = :subTestId " +
-           "AND s.status IN ('IN_PROGRESS', 'PAUSED') ORDER BY s.createdAt DESC")
+           "AND s.attempt IS NULL AND s.status IN ('IN_PROGRESS', 'PAUSED') ORDER BY s.createdAt DESC")
     List<TestSession> findResumable(@Param("userId") Long userId, @Param("subTestId") Long subTestId);
 
     List<TestSession> findByUserIdOrderByCreatedAtDesc(Long userId);
+
+    /** Section sessions of a full-test attempt, oldest first. */
+    List<TestSession> findByAttemptIdOrderByCreatedAtAsc(Long attemptId);
 
     List<TestSession> findByUserIdAndSubTestIdOrderByCreatedAtDesc(Long userId, Long subTestId);
 

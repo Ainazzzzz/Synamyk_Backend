@@ -14,6 +14,7 @@ import synamyk.dto.CreatePaymentResponse;
 import synamyk.dto.InitPaymentResponse;
 import synamyk.dto.PaymentHistoryEntry;
 import synamyk.entities.User;
+import synamyk.enums.ProductCode;
 import synamyk.exception.AppException;
 import synamyk.service.PaymentService;
 
@@ -46,19 +47,27 @@ public class PaymentController {
     @Operation(
             summary = "Инициировать платеж",
             description = "Создаёт запись платежа в БД и возвращает параметры для Flutter. "
-                    + "Передайте ровно один из параметров: `testId` — покупка всего теста (bundle), "
-                    + "либо `subTestId` — покупка одного подтеста.")
+                    + "Передайте ровно один из параметров: `testId` — покупка всего теста, "
+                    + "`subTestId` — покупка одного подтеста, `product` — каталожный продукт "
+                    + "(`ALL_TESTS` — все тесты, `ALL_TEXTS` — все тексты для чтения).")
     public ResponseEntity<InitPaymentResponse> initPayment(
             @RequestParam(required = false) Long testId,
             @RequestParam(required = false) Long subTestId,
+            @RequestParam(required = false) ProductCode product,
             Authentication authentication) {
         User user = (User) authentication.getPrincipal();
-        if ((testId == null) == (subTestId == null)) {
-            throw new AppException("Укажите testId или subTestId.", "testId же subTestId көрсөтүңүз.");
+        int targets = (testId != null ? 1 : 0) + (subTestId != null ? 1 : 0) + (product != null ? 1 : 0);
+        if (targets != 1) {
+            throw new AppException("Укажите testId, subTestId или product.", "testId, subTestId же product көрсөтүңүз.");
         }
-        InitPaymentResponse response = subTestId != null
-                ? paymentService.initPaymentSubTest(user.getId(), subTestId)
-                : paymentService.initPayment(user.getId(), testId);
+        InitPaymentResponse response;
+        if (product != null) {
+            response = paymentService.initPaymentProduct(user.getId(), product);
+        } else if (subTestId != null) {
+            response = paymentService.initPaymentSubTest(user.getId(), subTestId);
+        } else {
+            response = paymentService.initPayment(user.getId(), testId);
+        }
         return ResponseEntity.ok(response);
     }
 

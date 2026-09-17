@@ -20,8 +20,8 @@ import java.util.List;
         Поле type определяет тип события и набор заполненных полей:
 
         **GAME_STARTED** — игра началась. Содержит: player1Id, player2Id, player1Name, player2Name, player1Avatar, player2Avatar, player1Score=0, player2Score=0
-        **NEXT_QUESTION** — новый вопрос. Содержит: questionIndex, totalQuestions, timeLimitSeconds, question (id, text, imageUrl, options без флага correct), player1Score, player2Score
-        **GAME_OVER** — игра завершена. Содержит: player1Score, player2Score, winnerId (null при ничьей), forfeitedBy (заполнено, только если игра закончилась досрочной сдачей — id того, кто сдался)
+        **NEXT_QUESTION** — новый вопрос. Содержит: questionIndex, totalQuestions, timeLimitSeconds, question (id, text, imageUrl, figure, options без флага correct — порядок вариантов случайный в каждой игре), player1Score, player2Score
+        **GAME_OVER** — игра завершена. Содержит: player1Score, player2Score, winnerId (null при ничьей), player1RatingChange / player2RatingChange / player1Rating / player2Rating (игровой рейтинг), forfeitedBy (заполнено, только если игра закончилась досрочной сдачей — id того, кто сдался)
 
         Личные события приходят на /topic/game/{roomId}/answers/{userId}:
         **ANSWER_RESULT** — результат ответа конкретного игрока. Содержит: correct, player1Score, player2Score
@@ -89,6 +89,18 @@ public class GameEvent {
     @Schema(description = "[GAME_OVER] ID игрока, который сдался (заполнено только при досрочной сдаче через POST /api/game/{roomId}/forfeit)", example = "55")
     private Long forfeitedBy;
 
+    @Schema(description = "[GAME_OVER] Изменение игрового рейтинга первого игрока (+12 / -9)", example = "12")
+    private Integer player1RatingChange;
+
+    @Schema(description = "[GAME_OVER] Изменение игрового рейтинга второго игрока (null для бота)", example = "-12")
+    private Integer player2RatingChange;
+
+    @Schema(description = "[GAME_OVER] Рейтинг первого игрока после игры", example = "1012")
+    private Integer player1Rating;
+
+    @Schema(description = "[GAME_OVER] Рейтинг второго игрока после игры (для бота — его виртуальный рейтинг)", example = "988")
+    private Integer player2Rating;
+
     @Schema(description = "Сообщение об ошибке (при необходимости)")
     private String message;
 
@@ -107,6 +119,9 @@ public class GameEvent {
 
         @Schema(description = "URL изображения (может отсутствовать)")
         private String imageUrl;
+
+        @Schema(description = "Чертёж: координатная плоскость / геометрия (может отсутствовать)")
+        private java.util.Map<String, Object> figure;
 
         @Schema(description = "Варианты ответа (без поля correct)")
         private List<OptionPayload> options;

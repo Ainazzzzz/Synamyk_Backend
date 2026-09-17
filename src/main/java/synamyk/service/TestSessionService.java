@@ -39,6 +39,7 @@ public class TestSessionService {
     private final ClaudeAiService claudeAiService;
     private final MinioService minioService;
     private final PushNotificationService pushNotificationService;
+    private final QuestionPresenter questionPresenter;
 
     /**
      * Start or resume a sub-test session.
@@ -432,6 +433,12 @@ public class TestSessionService {
             throw new AppException("Нет доступа.", "Мүмкүнчүлүк жок.");
         }
 
+        if (session.getAttempt() != null) {
+            throw new AppException(
+                    "Этот раздел проходится в рамках всего теста. Используйте /api/attempts.",
+                    "Бул бөлүм толук тесттин ичинде тапшырылат. /api/attempts колдонуңуз.");
+        }
+
         if (session.getStatus() != TestSession.SessionStatus.IN_PROGRESS) {
             throw new AppException(
                     "Сессия неактивна. Статус: " + session.getStatus(),
@@ -453,14 +460,8 @@ public class TestSessionService {
 
         Boolean isSkipped = existingAnswer.map(UserAnswer::getIsSkipped).orElse(false);
 
-        List<AnswerOptionResponse> options = question.getOptions().stream()
-                .map(o -> AnswerOptionResponse.builder()
-                        .id(o.getId())
-                        .label(o.getLabel())
-                        .text(L10n.pick(o.getText(), o.getTextKy(), lang))
-                        .orderIndex(o.getOrderIndex())
-                        .build())
-                .toList();
+        List<AnswerOptionResponse> options = questionPresenter.options(question, lang);
+        ReadingPassage passage = question.getPassage();
 
         return QuestionForSessionResponse.builder()
                 .questionId(question.getId())
@@ -469,6 +470,12 @@ public class TestSessionService {
                 .sectionName(L10n.pick(question.getSectionName(), question.getSectionNameKy(), lang))
                 .text(L10n.pick(question.getText(), question.getTextKy(), lang))
                 .imageUrl(minioService.presign(question.getImageUrl()))
+                .questionType(QuestionPresenter.typeOf(question).name())
+                .columnA(L10n.pick(question.getColumnA(), question.getColumnAKy(), lang))
+                .columnB(L10n.pick(question.getColumnB(), question.getColumnBKy(), lang))
+                .figure(questionPresenter.figure(question))
+                .passageId(passage != null ? passage.getId() : null)
+                .passageText(passage != null ? L10n.pick(passage.getText(), passage.getTextKy(), lang) : null)
                 .pointValue(question.getPointValue())
                 .options(options)
                 .remainingSeconds(session.getRemainingSeconds())

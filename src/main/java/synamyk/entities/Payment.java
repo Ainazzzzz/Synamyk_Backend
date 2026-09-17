@@ -3,6 +3,7 @@ package synamyk.entities;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
+import synamyk.enums.PaymentProduct;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -25,9 +26,15 @@ public class Payment extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    /** Bought test; {@code null} for catalogue products (ALL_TESTS / ALL_TEXTS). */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "test_id", nullable = false)
+    @JoinColumn(name = "test_id")
     private Test test;
+
+    /** {@code null} on legacy rows — use {@link #resolveProduct()}. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private PaymentProduct product;
 
     /**
      * Set when the payment buys a single sub-test. {@code null} = whole-test
@@ -60,6 +67,11 @@ public class Payment extends BaseEntity {
     private String webhookData;
 
     private LocalDateTime paidAt;
+
+    public PaymentProduct resolveProduct() {
+        if (product != null) return product;
+        return subTest != null ? PaymentProduct.SUB_TEST : PaymentProduct.TEST;
+    }
 
     public enum PaymentStatus {
         PENDING,

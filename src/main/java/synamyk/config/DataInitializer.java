@@ -8,9 +8,12 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import synamyk.entities.ProductPrice;
 import synamyk.entities.Region;
 import synamyk.entities.User;
+import synamyk.enums.ProductCode;
 import synamyk.enums.Role;
+import synamyk.repo.ProductPriceRepository;
 import synamyk.repo.RegionRepository;
 import synamyk.repo.UserRepository;
 
@@ -23,6 +26,7 @@ public class DataInitializer implements ApplicationRunner {
 
     private final UserRepository userRepository;
     private final RegionRepository regionRepository;
+    private final ProductPriceRepository productPriceRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${admin.phone:+996700000000}")
@@ -39,6 +43,7 @@ public class DataInitializer implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         initRegions();
         initAdmin();
+        initProducts();
     }
 
     // ===== REGIONS =====
@@ -78,6 +83,18 @@ public class DataInitializer implements ApplicationRunner {
             }
         }
         if (created > 0) log.info("Regions seeded: {} created", created);
+    }
+
+    // ===== PRODUCTS =====
+
+    /** Catalogue products start inactive with price 0 — the admin sets a price and enables them. */
+    private void initProducts() {
+        for (ProductCode code : ProductCode.values()) {
+            if (productPriceRepository.findByCode(code).isEmpty()) {
+                productPriceRepository.save(ProductPrice.builder().code(code).build());
+                log.info("Product seeded: {}", code);
+            }
+        }
     }
 
     // ===== ADMIN =====

@@ -47,6 +47,12 @@ public class GameHistoryEntry {
     @Schema(description = "Аватар соперника (null для бота)")
     private String opponentAvatar;
 
+    @Schema(description = "Изменение игрового рейтинга в этой игре (null для старых игр)")
+    private Integer ratingChange;
+
+    @Schema(description = "Рейтинг после игры (null для старых игр)")
+    private Integer ratingAfter;
+
     @Schema(description = "Дата и время завершения игры")
     private LocalDateTime playedAt;
 }

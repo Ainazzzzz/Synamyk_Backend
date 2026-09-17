@@ -16,6 +16,8 @@ public class SubTestResponse {
     private Boolean isPaid;
     private BigDecimal price;        // price to unlock this single sub-test
     private Integer durationMinutes;
+    private String iconUrl;
+    private Integer maxScore;      // ОРТ points this section contributes
     private Long questionCount;
     private Boolean hasAccess;     // true if user has paid OR subtest is free (full access logic)
     private Boolean effectiveFree;  // true if a free window (test or sub-test) is active now

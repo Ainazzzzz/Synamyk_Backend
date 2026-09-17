@@ -12,7 +12,16 @@ public class TestDetailResponse {
     private Long id;
     private String title;
     private String description;
+    private String iconUrl;
     private BigDecimal price;
     private Boolean hasPaidAccess;      // user already paid for this test
+    private Boolean isFree;             // no section requires payment / free window
+    private Boolean hasAccess;          // the whole test can be started now
+    private Integer totalDurationMinutes;
+    private Integer totalQuestions;
+    private Integer maxScore;
+    private Integer bestOrtScore;
+    private Long resumableAttemptId;
+    private Integer resumableSectionIndex;
     private List<SubTestResponse> subTests;
 }

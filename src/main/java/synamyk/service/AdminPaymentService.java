@@ -156,7 +156,7 @@ public class AdminPaymentService {
         String fullName = ((u.getFirstName() != null ? u.getFirstName() : "") + " "
                 + (u.getLastName() != null ? u.getLastName() : "")).trim();
 
-        Integer points = paymentRepository.sumEarnedPointsByUserAndTest(
+        Integer points = p.getTest() == null ? null : paymentRepository.sumEarnedPointsByUserAndTest(
                 u.getId(), p.getTest().getId(), TestSession.SessionStatus.COMPLETED);
 
         return AdminPaymentResponse.builder()
@@ -173,7 +173,10 @@ public class AdminPaymentService {
                 .status(p.getStatus().name())
                 .date(p.getPaidAt() != null ? p.getPaidAt() : p.getCreatedAt())
                 .earnedPoints(points != null ? points : 0)
-                .testTitle(p.getTest().getTitle())
+                .testTitle(p.getTest() != null ? p.getTest().getTitle()
+                        : synamyk.service.ProductService.title(
+                                p.resolveProduct() == synamyk.enums.PaymentProduct.ALL_TEXTS
+                                        ? synamyk.enums.ProductCode.ALL_TEXTS : synamyk.enums.ProductCode.ALL_TESTS, "RU"))
                 .subTestId(p.getSubTest() != null ? p.getSubTest().getId() : null)
                 .subTestTitle(p.getSubTest() != null ? p.getSubTest().getTitle() : null)
                 .build();
