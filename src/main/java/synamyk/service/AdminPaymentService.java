@@ -177,8 +177,6 @@ public class AdminPaymentService {
                         : synamyk.service.ProductService.title(
                                 p.resolveProduct() == synamyk.enums.PaymentProduct.ALL_TEXTS
                                         ? synamyk.enums.ProductCode.ALL_TEXTS : synamyk.enums.ProductCode.ALL_TESTS, "RU"))
-                .subTestId(p.getSubTest() != null ? p.getSubTest().getId() : null)
-                .subTestTitle(p.getSubTest() != null ? p.getSubTest().getTitle() : null)
                 .build();
     }
 

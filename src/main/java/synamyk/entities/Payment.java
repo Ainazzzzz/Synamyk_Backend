@@ -36,15 +36,6 @@ public class Payment extends BaseEntity {
     @Column(length = 20)
     private PaymentProduct product;
 
-    /**
-     * Set when the payment buys a single sub-test. {@code null} = whole-test
-     * bundle purchase (legacy behaviour). When set, {@code test} is the
-     * sub-test's parent test (kept for reports and backward compatibility).
-     */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sub_test_id")
-    private SubTest subTest;
-
     @Column(unique = true, nullable = false)
     private UUID paymentId;
 
@@ -69,8 +60,7 @@ public class Payment extends BaseEntity {
     private LocalDateTime paidAt;
 
     public PaymentProduct resolveProduct() {
-        if (product != null) return product;
-        return subTest != null ? PaymentProduct.SUB_TEST : PaymentProduct.TEST;
+        return product != null ? product : PaymentProduct.TEST;
     }
 
     public enum PaymentStatus {

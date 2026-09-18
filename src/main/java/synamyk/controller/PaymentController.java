@@ -48,23 +48,20 @@ public class PaymentController {
             summary = "Инициировать платеж",
             description = "Создаёт запись платежа в БД и возвращает параметры для Flutter. "
                     + "Передайте ровно один из параметров: `testId` — покупка всего теста, "
-                    + "`subTestId` — покупка одного подтеста, `product` — каталожный продукт "
+                    + "`product` — каталожный продукт "
                     + "(`ALL_TESTS` — все тесты, `ALL_TEXTS` — все тексты для чтения).")
     public ResponseEntity<InitPaymentResponse> initPayment(
             @RequestParam(required = false) Long testId,
-            @RequestParam(required = false) Long subTestId,
             @RequestParam(required = false) ProductCode product,
             Authentication authentication) {
         User user = (User) authentication.getPrincipal();
-        int targets = (testId != null ? 1 : 0) + (subTestId != null ? 1 : 0) + (product != null ? 1 : 0);
+        int targets = (testId != null ? 1 : 0) + (product != null ? 1 : 0);
         if (targets != 1) {
-            throw new AppException("Укажите testId, subTestId или product.", "testId, subTestId же product көрсөтүңүз.");
+            throw new AppException("Укажите testId или product.", "testId же product көрсөтүңүз.");
         }
         InitPaymentResponse response;
         if (product != null) {
             response = paymentService.initPaymentProduct(user.getId(), product);
-        } else if (subTestId != null) {
-            response = paymentService.initPaymentSubTest(user.getId(), subTestId);
         } else {
             response = paymentService.initPayment(user.getId(), testId);
         }

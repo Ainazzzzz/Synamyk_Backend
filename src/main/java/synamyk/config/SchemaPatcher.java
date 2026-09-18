@@ -24,7 +24,11 @@ public class SchemaPatcher implements ApplicationRunner {
 
     private static final List<String> STATEMENTS = List.of(
             // Catalogue purchases (ALL_TESTS / ALL_TEXTS) are not tied to a test.
-            "ALTER TABLE payments ALTER COLUMN test_id DROP NOT NULL"
+            "ALTER TABLE payments ALTER COLUMN test_id DROP NOT NULL",
+            // Sections are no longer sold separately: the entity stopped writing these columns,
+            // so the leftover NOT NULL columns need a default to keep inserts working.
+            "ALTER TABLE sub_tests ALTER COLUMN is_paid SET DEFAULT false",
+            "UPDATE sub_tests SET is_paid = false, price = 0 WHERE is_paid = true OR price <> 0"
     );
 
     @Override

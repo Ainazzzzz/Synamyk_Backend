@@ -18,7 +18,7 @@ public class AdminTestResponse {
     private String description;
     private String descriptionKy;
     private String iconUrl;
-    private BigDecimal price;          // bundle price: unlocks all paid sub-tests
+    private BigDecimal price;          // price of the whole test
     private Integer maxScore;          // ОРТ max of the whole test
     private LocalDateTime freeFrom;    // free-window start, null = none
     private LocalDateTime freeUntil;   // free-window end, null = none
@@ -35,10 +35,6 @@ public class AdminTestResponse {
         private String levelName;
         private String levelNameKy;
         private Integer levelOrder;
-        private Boolean isPaid;
-        private BigDecimal price;          // price to unlock this single sub-test
-        private LocalDateTime freeFrom;    // free-window start, null = none
-        private LocalDateTime freeUntil;   // free-window end, null = none
         private Integer durationMinutes;
         private Integer maxScore;          // explicit ОРТ points, null = proportional share
         private String iconUrl;

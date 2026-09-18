@@ -17,18 +17,14 @@ import synamyk.entities.UserAllAccess;
 import synamyk.enums.PaymentProduct;
 import synamyk.enums.ProductCode;
 import synamyk.repo.UserAllAccessRepository;
-import synamyk.entities.SubTest;
 import synamyk.entities.Test;
 import synamyk.entities.User;
-import synamyk.entities.UserSubTestAccess;
 import synamyk.entities.UserTestAccess;
 import synamyk.config.FinikConfig;
 import synamyk.exception.AppException;
 import synamyk.repo.PaymentRepository;
-import synamyk.repo.SubTestRepository;
 import synamyk.repo.TestRepository;
 import synamyk.repo.UserRepository;
-import synamyk.repo.UserSubTestAccessRepository;
 import synamyk.repo.UserTestAccessRepository;
 
 import java.math.BigDecimal;
@@ -44,9 +40,7 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final UserRepository userRepository;
     private final TestRepository testRepository;
-    private final SubTestRepository subTestRepository;
     private final UserTestAccessRepository accessRepository;
-    private final UserSubTestAccessRepository subTestAccessRepository;
     private final AccessResolver accessResolver;
     private final FinikConfig finikConfig;
     private final UserAllAccessRepository allAccessRepository;
@@ -73,10 +67,6 @@ public class PaymentService {
                         p.getTest() != null
                                 ? L10n.pick(p.getTest().getTitle(), p.getTest().getTitleKy(), lang)
                                 : productTitle(p.resolveProduct(), lang),
-                        p.getSubTest() != null ? p.getSubTest().getId() : null,
-                        p.getSubTest() != null
-                                ? L10n.pick(p.getSubTest().getTitle(), p.getSubTest().getTitleKy(), lang)
-                                : null,
                         p.getAmount(),
                         p.getStatus().name(),
                         p.getReceiptNumber(),
@@ -121,50 +111,6 @@ public class PaymentService {
                 .paymentId(paymentId)
                 .amount(test.getPrice())
                 .nameEn(truncate(test.getTitle(), 50))
-                .callbackUrl(finikConfig.getWebhookUrl())
-                .build();
-    }
-
-    /** Buy access to a single sub-test. */
-    @Transactional
-    public InitPaymentResponse initPaymentSubTest(Long userId, Long subTestId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        SubTest subTest = subTestRepository.findById(subTestId)
-                .orElseThrow(() -> new AppException("Подтест не найден.", "Подтест табылган жок."));
-
-        if (!Boolean.TRUE.equals(subTest.getActive())) {
-            throw new AppException("Подтест недоступен.", "Подтест жеткиликтүү эмес.");
-        }
-        BigDecimal price = subTest.getPrice();
-        if (!Boolean.TRUE.equals(subTest.getIsPaid()) || price == null || price.signum() <= 0) {
-            throw new AppException("Этот подтест не продаётся.", "Бул подтест сатылбайт.");
-        }
-        if (accessResolver.hasSubTestAccess(userId, subTest, LocalDateTime.now())) {
-            throw new AppException("Уже куплено.", "Мурунтан эле сатып алынган.");
-        }
-
-        Test test = subTest.getTest();
-        UUID paymentId = UUID.randomUUID();
-
-        Payment payment = Payment.builder()
-                .user(user)
-                .test(test)
-                .subTest(subTest)
-                .product(PaymentProduct.SUB_TEST)
-                .paymentId(paymentId)
-                .amount(price)
-                .status(Payment.PaymentStatus.PENDING)
-                .build();
-
-        paymentRepository.save(payment);
-        log.info("Payment record created (sub-test): paymentId={}, userId={}, subTestId={}", paymentId, userId, subTestId);
-
-        return InitPaymentResponse.builder()
-                .paymentId(paymentId)
-                .amount(price)
-                .nameEn(truncate(test.getTitle() + " — " + subTest.getTitle(), 50))
                 .callbackUrl(finikConfig.getWebhookUrl())
                 .build();
     }
@@ -245,10 +191,9 @@ public class PaymentService {
         grantAccess(payment);
         referralService.onPaymentCompleted(payment);
 
-        log.info("Payment completed: paymentId={}, userId={}, product={}, testId={}, subTestId={}",
+        log.info("Payment completed: paymentId={}, userId={}, product={}, testId={}",
                 payment.getPaymentId(), payment.getUser().getId(), payment.resolveProduct(),
-                payment.getTest() != null ? payment.getTest().getId() : null,
-                payment.getSubTest() != null ? payment.getSubTest().getId() : null);
+                payment.getTest() != null ? payment.getTest().getId() : null);
     }
 
     /** Route a completed payment to the right access grant. */
@@ -263,16 +208,6 @@ public class PaymentService {
             access.setExpiresAt(null); // a purchase grants permanent access
             allAccessRepository.save(access);
             log.info("All-access granted (permanent): userId={}, product={}", user.getId(), code);
-        } else if (payment.getSubTest() != null) {
-            User user = payment.getUser();
-            SubTest subTest = payment.getSubTest();
-            UserSubTestAccess access = subTestAccessRepository
-                    .findByUserIdAndSubTestId(user.getId(), subTest.getId())
-                    .orElseGet(() -> UserSubTestAccess.builder().user(user).subTest(subTest).build());
-            access.setGrantedAt(LocalDateTime.now());
-            access.setExpiresAt(null); // a purchase grants permanent access
-            subTestAccessRepository.save(access);
-            log.info("Sub-test access granted (permanent): userId={}, subTestId={}", user.getId(), subTest.getId());
         } else {
             grantTestAccess(payment.getUser(), payment.getTest());
         }

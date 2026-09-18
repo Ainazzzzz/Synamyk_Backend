@@ -45,29 +45,6 @@ public class SubTest extends BaseEntity {
     @Builder.Default
     private Integer levelOrder = 0;
 
-    /**
-     * Whether this sub-test requires payment to access.
-     */
-    @Column(nullable = false)
-    @Builder.Default
-    private Boolean isPaid = false;
-
-    /**
-     * Price to unlock this single sub-test. Independent of the parent test's
-     * bundle price. Must be &gt; 0 when {@link #isPaid} is true.
-     */
-    @Column(nullable = false, precision = 10, scale = 2, columnDefinition = "numeric(10,2) default 0")
-    @Builder.Default
-    private BigDecimal price = BigDecimal.ZERO;
-
-    /** Start of the "free for everyone" window; {@code null} = open-ended start. */
-    @Column
-    private LocalDateTime freeFrom;
-
-    /** End of the "free for everyone" window; {@code null} = open-ended end. */
-    @Column
-    private LocalDateTime freeUntil;
-
     @Column(nullable = false)
     @Builder.Default
     private Integer durationMinutes = 30;

@@ -138,7 +138,7 @@ public class ReferralService {
                 .orElseThrow(() -> new AppException("Тест не найден.", "Тест табылган жок."));
         LocalDateTime now = LocalDateTime.now();
         List<SubTest> sections = subTestRepository.findByTestIdAndActiveTrueOrderByLevelOrderAsc(testId);
-        if (accessResolver.hasTestAccess(userId, test, sections, now)) {
+        if (accessResolver.hasTestAccess(userId, test, now)) {
             throw new AppException("Этот тест уже открыт — выберите другой.", "Бул тест мурунтан ачык — башкасын тандаңыз.");
         }
 

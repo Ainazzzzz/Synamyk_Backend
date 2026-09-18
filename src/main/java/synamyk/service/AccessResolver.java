@@ -6,33 +6,28 @@ import synamyk.entities.SubTest;
 import synamyk.entities.Test;
 import synamyk.enums.ProductCode;
 import synamyk.repo.UserAllAccessRepository;
-import synamyk.repo.UserSubTestAccessRepository;
 import synamyk.repo.UserTestAccessRepository;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
- * Single source of truth for "can this user open this sub-test / test right now?".
+ * Single source of truth for "can this user open this test right now?".
  *
- * <p>Order of precedence for a sub-test:
+ * <p>Payment happens for a whole test only — sections are never sold separately.
+ * Order of precedence:
  * <ol>
- *   <li>sub-test is not paid → open</li>
- *   <li>parent test is inside its free window → open for everyone</li>
- *   <li>sub-test is inside its free window → open for everyone</li>
+ *   <li>test costs nothing (price is 0 or unset) → open</li>
+ *   <li>test is inside its free window → open for everyone</li>
  *   <li>user bought «все тесты» → open</li>
- *   <li>user has an active whole-test grant (purchase / referral reward / manual grant) → open</li>
- *   <li>user has an active sub-test grant (independent purchase / manual grant) → open</li>
+ *   <li>user has an active test grant (purchase / referral reward / manual grant) → open</li>
  *   <li>otherwise → closed</li>
  * </ol>
- * A whole test is open when every one of its active sections is open.
  */
 @Component
 @RequiredArgsConstructor
 public class AccessResolver {
 
     private final UserTestAccessRepository userTestAccessRepo;
-    private final UserSubTestAccessRepository userSubTestAccessRepo;
     private final UserAllAccessRepository userAllAccessRepo;
 
     /**
@@ -47,53 +42,32 @@ public class AccessResolver {
         return afterStart && beforeEnd;
     }
 
-    /** True if either the parent test or the sub-test is currently in a free window. */
-    public boolean isEffectivelyFree(SubTest st, LocalDateTime now) {
-        Test t = st.getTest();
-        return isFreeNow(t.getFreeFrom(), t.getFreeUntil(), now)
-                || isFreeNow(st.getFreeFrom(), st.getFreeUntil(), now);
+    /** «Акысыз» badge: the test costs nothing, or its free window is open right now. */
+    public static boolean isTestFree(Test test, LocalDateTime now) {
+        if (test.getPrice() == null || test.getPrice().signum() <= 0) return true;
+        return isFreeNow(test.getFreeFrom(), test.getFreeUntil(), now);
     }
 
     /**
-     * Nearest date on which the current free window ends, or {@code null} if the
-     * content is not currently free or the active window is open-ended.
+     * End of the test's active free window, or {@code null} if the test is not
+     * currently inside a window or the window is open-ended.
      * Used by the mobile client for a "free for N more days" badge.
      */
-    public LocalDateTime freeUntilBoundary(SubTest st, LocalDateTime now) {
-        Test t = st.getTest();
-        LocalDateTime result = null;
-        if (isFreeNow(t.getFreeFrom(), t.getFreeUntil(), now) && t.getFreeUntil() != null) {
-            result = t.getFreeUntil();
-        }
-        if (isFreeNow(st.getFreeFrom(), st.getFreeUntil(), now) && st.getFreeUntil() != null) {
-            if (result == null || st.getFreeUntil().isBefore(result)) result = st.getFreeUntil();
-        }
-        return result;
+    public static LocalDateTime freeUntilBoundary(Test test, LocalDateTime now) {
+        return isFreeNow(test.getFreeFrom(), test.getFreeUntil(), now) ? test.getFreeUntil() : null;
     }
 
-    public boolean hasSubTestAccess(Long userId, SubTest st, LocalDateTime now) {
-        if (!Boolean.TRUE.equals(st.getIsPaid())) return true;
-        if (isEffectivelyFree(st, now)) return true;
+    /** The test — and therefore every section in it — can be opened by this user. */
+    public boolean hasTestAccess(Long userId, Test test, LocalDateTime now) {
+        if (isTestFree(test, now)) return true;
+        if (userId == null) return false;
         if (userAllAccessRepo.existsActiveAccess(userId, ProductCode.ALL_TESTS, now)) return true;
-        Long testId = st.getTest().getId();
-        if (userTestAccessRepo.existsActiveAccess(userId, testId, now)) return true;
-        if (userSubTestAccessRepo.existsActiveAccess(userId, st.getId(), now)) return true;
-        return false;
+        return userTestAccessRepo.existsActiveAccess(userId, test.getId(), now);
     }
 
-    /** «Акысыз» badge: no active section requires payment, or the test is in a free window. */
-    public static boolean isTestFree(Test test, List<SubTest> activeSections, LocalDateTime now) {
-        if (isFreeNow(test.getFreeFrom(), test.getFreeUntil(), now)) return true;
-        return activeSections.stream().noneMatch(st -> Boolean.TRUE.equals(st.getIsPaid())
-                && !isFreeNow(st.getFreeFrom(), st.getFreeUntil(), now));
-    }
-
-    /** The whole test can be started: every active section is open for this user. */
-    public boolean hasTestAccess(Long userId, Test test, List<SubTest> activeSections, LocalDateTime now) {
-        if (isTestFree(test, activeSections, now)) return true;
-        if (userAllAccessRepo.existsActiveAccess(userId, ProductCode.ALL_TESTS, now)) return true;
-        if (userTestAccessRepo.existsActiveAccess(userId, test.getId(), now)) return true;
-        return activeSections.stream().allMatch(st -> hasSubTestAccess(userId, st, now));
+    /** Sections are not sold separately: access to a section is access to its test. */
+    public boolean hasSubTestAccess(Long userId, SubTest subTest, LocalDateTime now) {
+        return hasTestAccess(userId, subTest.getTest(), now);
     }
 
     public boolean hasAllAccess(Long userId, ProductCode product, LocalDateTime now) {

@@ -130,30 +130,6 @@ public class AdminTestController {
         return ResponseEntity.ok(adminTestService.updateSubTest(subTestId, request));
     }
 
-    @PatchMapping("/sub-tests/{subTestId}/schedule")
-    @Operation(
-            summary = "Расписание платности подтеста",
-            description = "Окно бесплатности одного подтеста. В это окно подтест бесплатен для всех пользователей. "
-                    + "`{ \"freeFrom\": null, \"freeUntil\": null }` — очистить окно. Время — Asia/Bishkek."
-    )
-    public ResponseEntity<AdminTestResponse.AdminSubTestResponse> updateSubTestSchedule(
-            @Parameter(description = "ID подтеста") @PathVariable Long subTestId,
-            @Valid @RequestBody ScheduleRequest request) {
-        return ResponseEntity.ok(adminTestService.updateSubTestSchedule(subTestId, request));
-    }
-
-    @PatchMapping("/sub-tests/{subTestId}/paid")
-    @Operation(
-            summary = "Сделать подтест платным или бесплатным",
-            description = "Передай `true` — подтест станет платным, `false` — бесплатным. " +
-                    "Изменение применяется мгновенно без затрагивания остальных настроек подтеста."
-    )
-    public ResponseEntity<AdminTestResponse.AdminSubTestResponse> setSubTestPaid(
-            @Parameter(description = "ID подтеста") @PathVariable Long subTestId,
-            @RequestParam boolean paid) {
-        return ResponseEntity.ok(adminTestService.setSubTestPaid(subTestId, paid));
-    }
-
     @DeleteMapping("/sub-tests/{subTestId}")
     @Operation(summary = "Деактивировать подтест")
     @ApiResponse(responseCode = "204", description = "Подтест деактивирован")

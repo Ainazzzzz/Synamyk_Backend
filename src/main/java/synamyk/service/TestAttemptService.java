@@ -57,7 +57,7 @@ public class TestAttemptService {
             throw new AppException("В тесте нет разделов.", "Тестте бөлүмдөр жок.");
         }
         LocalDateTime now = LocalDateTime.now();
-        if (!accessResolver.hasTestAccess(userId, test, sections, now)) {
+        if (!accessResolver.hasTestAccess(userId, test, now)) {
             throw new AppException(
                     "Нет доступа. Пожалуйста, приобретите тест.",
                     "Мүмкүнчүлүк жок. Тестти сатып алыңыз.");

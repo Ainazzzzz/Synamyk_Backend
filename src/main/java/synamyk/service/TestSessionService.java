@@ -51,12 +51,12 @@ public class TestSessionService {
         SubTest subTest = subTestRepository.findById(subTestId)
                 .orElseThrow(() -> new AppException("Подтест не найден.", "Подтест табылган жок."));
 
-        // Check access (not-paid / free window / bundle grant / sub-test grant)
+        // Access is granted for the whole test (free window / purchase / grant)
         if (!accessResolver.hasSubTestAccess(userId, subTest, LocalDateTime.now())) {
-            log.warn("Access denied: userId={}, subTestId={} — paid subtest, no access granted", userId, subTestId);
+            log.warn("Access denied: userId={}, subTestId={} — paid test, no access granted", userId, subTestId);
             throw new AppException(
-                    "Нет доступа. Пожалуйста, приобретите подтест.",
-                    "Мүмкүнчүлүк жок. Подтестти сатып алыңыз.");
+                    "Нет доступа. Пожалуйста, приобретите тест.",
+                    "Мүмкүнчүлүк жок. Тестти сатып алыңыз.");
         }
 
         // Look for any resumable session (IN_PROGRESS or PAUSED)

@@ -103,7 +103,7 @@ class ReferralServiceTest {
         when(rewardRepository.findByInviterIdAndRedeemedAtIsNullOrderByCreatedAtAsc(1L)).thenReturn(List.of(reward));
         when(testRepository.findById(9L)).thenReturn(Optional.of(test));
         when(subTestRepository.findByTestIdAndActiveTrueOrderByLevelOrderAsc(9L)).thenReturn(List.of());
-        when(accessResolver.hasTestAccess(eq(1L), eq(test), any(), any())).thenReturn(false);
+        when(accessResolver.hasTestAccess(eq(1L), eq(test), any())).thenReturn(false);
         when(userRepository.findById(1L)).thenReturn(Optional.of(me));
         when(userTestAccessRepository.findByUserIdAndTestId(1L, 9L)).thenReturn(Optional.empty());
         when(rewardRepository.findByInviterIdOrderByCreatedAtDesc(anyLong())).thenReturn(List.of(reward));
@@ -123,7 +123,7 @@ class ReferralServiceTest {
         when(rewardRepository.findByInviterIdAndRedeemedAtIsNullOrderByCreatedAtAsc(1L))
                 .thenReturn(List.of(ReferralReward.builder().build()));
         when(testRepository.findById(9L)).thenReturn(Optional.of(test));
-        when(accessResolver.hasTestAccess(eq(1L), eq(test), any(), any())).thenReturn(true);
+        when(accessResolver.hasTestAccess(eq(1L), eq(test), any())).thenReturn(true);
 
         assertThatThrownBy(() -> service.redeem(1L, 9L, "RU")).isInstanceOf(AppException.class);
         verify(userTestAccessRepository, never()).save(any());
